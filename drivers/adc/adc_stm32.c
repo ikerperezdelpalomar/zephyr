@@ -720,51 +720,6 @@ static const struct adc_driver_api api_stm32_driver_api = {
 #endif
 };
 
-int adc_dma_config(const struct device *dev, uint32_t channel,
-			      struct dma_config *config){
-
-		struct dma_stm32_data *data = dev->data;
-		struct ddma_stm32_config *dev_config = dev->config;
-		// Check stream is disabled, if not disable it with EN DMA_SxCR
-		// Check wheter channel is not greater than the number of dma channels
-		// Set the peripherial port register address DMA_SxPAR
-		// Set memory address DMA_SxMA0R
-		// Configure total number of items to be transfered
-		// Select the dma channel
-		// if needed, PFCTL in DMA_SxCR
-		// Configure priority
-		// Configure Fifo usage
-		// Configure data transfer direction
-};
-
-int adc_dma_start (const struct device *dev, uint32_t channel) {
-	//Enable/Activate the stream
-	//stm32_dma_enable_stream(DMA_TypeDef *dma, uint32_t id);
-};
-
-int adc_dma_stop (const struct device *dev, uint32_t channel) {
-	//Disable the stream
-	//stm32_dma_disable_stream(DMA_TypeDef *dma, uint32_t id);
-};
-
-int adc_dma_status(const struct device *dev, uint32_t channel,
-				  struct dma_status *status){
-
-};
-
-int adc_dma_reload(const struct device *dev, uint32_t channel,
-			      uint32_t src, uint32_t dst, size_t size){
-
-};
-
-static const struct dma_driver_api adc_dma_funcs = {
-	.config = adc_dma_config,
-	.reload = adc_dma_reload,
-	.start = adc_dma_start,
-	.stop = adc_dma_stop,
-	.get_status = adc_dma_status,
-};
-
 #define STM32_ADC_INIT(index)						\
 									\
 static void adc_stm32_cfg_func_##index(void);				\
