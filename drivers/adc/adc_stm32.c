@@ -11,15 +11,17 @@
 
 #include <errno.h>
 
-#include <dt-bindings/dma/stm32_dma.h>
+
 #include <drivers/adc.h>
-#include <drivers/dma.h>
 #include <device.h>
 #include <kernel.h>
 #include <init.h>
 #include <soc.h>
 
-#include "dma_stm32.h"
+#ifdef CONFIG_SPI_STM32_DMA
+#include <drivers/dma.h>
+#include <dt-bindings/dma/stm32_dma.h>
+#endif
 
 #define ADC_CONTEXT_USES_KERNEL_TIMER
 #include "adc_context.h"
@@ -206,6 +208,20 @@ static const uint32_t table_samp_time[] = {
 /* External channels (maximum). */
 #define STM32_CHANNEL_COUNT		20
 
+#ifdef CONFIG_SPI_STM32_DMA
+struct stream {
+	const char *dma_name;
+	const struct device *dma_dev;
+	uint32_t channel; /* stores the channel for dma or mux */
+	struct dma_config dma_cfg;
+	struct dma_block_config dma_blk_cfg;
+	uint8_t priority;
+	bool src_addr_increment;
+	bool dst_addr_increment;
+	int fifo_threshold;
+};
+#endif
+
 struct adc_stm32_data {
 	struct adc_context ctx;
 	const struct device *dev;
@@ -216,6 +232,9 @@ struct adc_stm32_data {
 	uint8_t channel_count;
 #if defined(CONFIG_SOC_SERIES_STM32F0X) || defined(CONFIG_SOC_SERIES_STM32L0X)
 	int8_t acq_time_index;
+#endif
+# if defined CONFIG_ADC_STM32_DMA
+	struct stream adc_dma;
 #endif
 };
 
@@ -316,6 +335,10 @@ static int start_read(const struct device *dev,
 		return -EINVAL;
 	}
 
+#ifdef CONFIG_ADC_STM32_DMA
+	dma_config(data->adc_dma.dma.dev, data->adc_dma.channel, data->adc_dma.dma_cfg)
+	dma_start(data->adc_dma.dma.dev, data->adc_dma.channel)
+#else
 	uint32_t channels = sequence->channels;
 
 	data->buffer = sequence->buffer;
@@ -323,6 +346,7 @@ static int start_read(const struct device *dev,
 
 	index = find_lsb_set(channels) - 1;
 	uint32_t channel = __LL_ADC_DECIMAL_NB_TO_CHANNEL(index);
+#endif
 #if defined(CONFIG_SOC_SERIES_STM32H7X)
 	/*
 	 * Each channel in the sequence must be previously enabled in PCSEL.
@@ -720,6 +744,57 @@ static const struct adc_driver_api api_stm32_driver_api = {
 #endif
 };
 
+// To be revised
+#define DMA_CHANNEL_CONFIG(id, dir)					\
+		DT_INST_DMAS_CELL_BY_NAME(id, dir, channel_config)
+#define DMA_FEATURES(id, dir)						\
+		DT_INST_DMAS_CELL_BY_NAME(id, dir, features)
+
+#define ADC_DMA_CHANNEL_INIT(index, dir, dir_cap, src_dev, dest_dev)	\
+	.dma_name = DT_INST_DMAS_LABEL_BY_NAME(index, dir),		\
+	.channel =							\
+		DT_INST_DMAS_CELL_BY_NAME(index, dir, channel),		\
+	.dma_cfg = {							\
+		.dma_slot =						\
+		   DT_INST_DMAS_CELL_BY_NAME(index, dir, slot),		\
+		.channel_direction = STM32_DMA_CONFIG_DIRECTION(	\
+					DMA_CHANNEL_CONFIG(index, dir)),       \
+		.source_data_size = STM32_DMA_CONFIG_##src_dev##_DATA_SIZE(    \
+					DMA_CHANNEL_CONFIG(index, dir)),       \
+		.dest_data_size = STM32_DMA_CONFIG_##dest_dev##_DATA_SIZE(     \
+				DMA_CHANNEL_CONFIG(index, dir)),	\
+		.source_burst_length = 1, /* SINGLE transfer */		\
+		.dest_burst_length = 1, /* SINGLE transfer */		\
+		.channel_priority = STM32_DMA_CONFIG_PRIORITY(		\
+					DMA_CHANNEL_CONFIG(index, dir)),\
+		.dma_callback = dma_callback,				\
+		.block_count = 2,					\
+	},								\
+	.src_addr_increment = STM32_DMA_CONFIG_##src_dev##_ADDR_INC(	\
+				DMA_CHANNEL_CONFIG(index, dir)),	\
+	.dst_addr_increment = STM32_DMA_CONFIG_##dest_dev##_ADDR_INC(	\
+				DMA_CHANNEL_CONFIG(index, dir)),	\
+	.fifo_threshold = STM32_DMA_FEATURES_FIFO_THRESHOLD(		\
+					DMA_FEATURES(index, dir)),	\
+
+// To be revised
+#if CONFIG_ADC_STM32_DMA
+#define ADC_DMA_CHANNEL(id, dir, DIR, src, dest)			\
+	.dma_##dir = {							\
+		COND_CODE_1(DT_INST_DMAS_HAS_NAME(id, dir),		\
+			(ADC_DMA_CHANNEL_INIT(id, dir, DIR, src, dest)),\
+			(NULL))						\
+		},
+
+#define ADC_DMA_STATUS_SEM(id)						\
+	.status_sem = Z_SEM_INITIALIZER(				\
+		spi_stm32_dev_data_##id.status_sem, 0, 1),
+
+#else
+#define ADC_DMA_CHANNEL(id, dir, DIR, src, dest)
+#define ADC_DMA_STATUS_SEM(id)
+#endif
+
 #define STM32_ADC_INIT(index)						\
 									\
 static void adc_stm32_cfg_func_##index(void);				\
@@ -740,8 +815,8 @@ static const struct adc_stm32_cfg adc_stm32_cfg_##index = {		\
 static struct adc_stm32_data adc_stm32_data_##index = {			\
 	ADC_CONTEXT_INIT_TIMER(adc_stm32_data_##index, ctx),		\
 	ADC_CONTEXT_INIT_LOCK(adc_stm32_data_##index, ctx),		\
-	ADC_CONTEXT_INIT_SYNC(adc_stm32_data_##index, ctx),		\
-};									\
+	ADC_CONTEXT_INIT_SYNC(adc_stm32_data_##index, ctx),	\
+};/*Add DMA Channel 	// Add DMA Status*/			\
 									\
 DEVICE_AND_API_INIT(adc_##index, DT_INST_LABEL(index),			\
 		    &adc_stm32_init,					\
