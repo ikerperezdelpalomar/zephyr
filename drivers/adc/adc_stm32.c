@@ -816,7 +816,9 @@ static struct adc_stm32_data adc_stm32_data_##index = {			\
 	ADC_CONTEXT_INIT_TIMER(adc_stm32_data_##index, ctx),		\
 	ADC_CONTEXT_INIT_LOCK(adc_stm32_data_##index, ctx),		\
 	ADC_CONTEXT_INIT_SYNC(adc_stm32_data_##index, ctx),	\
-};/*Add DMA Channel 	// Add DMA Status*/			\
+	ADC_DMA_CHANNEL(id, dir, DIR, src, dest)	\
+	ADC_DMA_STATUS_SEM(id)	\
+};			\
 									\
 DEVICE_AND_API_INIT(adc_##index, DT_INST_LABEL(index),			\
 		    &adc_stm32_init,					\
