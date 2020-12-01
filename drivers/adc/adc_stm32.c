@@ -19,7 +19,7 @@
 #include <soc.h>
 #include <stm32_ll_adc.h>
 
-#ifdef CONFIG_SPI_STM32_DMA
+#ifdef CONFIG_DMA_STM32
 #include <drivers/dma.h>
 #include <dt-bindings/dma/stm32_dma.h>
 #endif
@@ -211,7 +211,7 @@ static const uint32_t table_samp_time[] = {
 /* External channels (maximum). */
 #define STM32_CHANNEL_COUNT		20
 
-#ifdef CONFIG_SPI_STM32_DMA
+#ifdef CONFIG_DMA_STM32
 struct stream {
 	const char *dma_name;
 	const struct device *dma_dev;
@@ -238,7 +238,7 @@ struct adc_stm32_data {
 	defined(CONFIG_SOC_SERIES_STM32L0X)
 	int8_t acq_time_index;
 #endif
-# if defined CONFIG_ADC_STM32_DMA
+# if defined CONFIG_DMA_STM32
 	struct stream adc_dma;
 #endif
 };
@@ -341,10 +341,10 @@ static int start_read(const struct device *dev,
 		return -EINVAL;
 	}
 
-#ifdef CONFIG_ADC_STM32_DMA
-	dma_config(data->adc_dma.dma.dev, data->adc_dma.channel, data->adc_dma.dma_cfg)
-	dma_start(data->adc_dma.dma.dev, data->adc_dma.channel)
-#else
+#ifdef CONFIG_DMA_STM32
+	dma_config(data->adc_dma.dma_dev, data->adc_dma.channel, &data->adc_dma.dma_cfg);
+	dma_start(data->adc_dma.dma_dev, data->adc_dma.channel);
+#endif
 	uint32_t channels = sequence->channels;
 	uint8_t index = find_lsb_set(channels) - 1;
 
@@ -356,7 +356,7 @@ static int start_read(const struct device *dev,
 	data->buffer = sequence->buffer;
 
 	uint32_t channel = __LL_ADC_DECIMAL_NB_TO_CHANNEL(index);
-#endif
+
 #if defined(CONFIG_SOC_SERIES_STM32H7X)
 	/*
 	 * Each channel in the sequence must be previously enabled in PCSEL.
@@ -823,7 +823,7 @@ static const struct adc_driver_api api_stm32_driver_api = {
 					DMA_FEATURES(index, dir)),	\
 
 // To be revised
-#if CONFIG_ADC_STM32_DMA
+#if CONFIG_DMA_STM32
 #define ADC_DMA_CHANNEL(id, dir, DIR, src, dest)			\
 	.dma_##dir = {							\
 		COND_CODE_1(DT_INST_DMAS_HAS_NAME(id, dir),		\
