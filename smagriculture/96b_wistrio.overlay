@@ -1,0 +1,12 @@
+96b_wistrio.overlay 
+/*
+ * Copyright (c) 2020 Codethink Ltd.
+ *
+ * SPDX-License-Identifier: TO BE DEFINED
+ */
+
+/ {
+	&adc1 {
+		status="okay"
+	};
+};
