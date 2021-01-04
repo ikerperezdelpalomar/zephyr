@@ -4,7 +4,7 @@
 const enum adc_gain ADC_GAIN = ADC_GAIN_1;
 const enum adc_reference ADC_REFENCE = ADC_REF_INTERNAL;
 const uint16_t ADC_ACQUISITION_TIME = ADC_ACQ_TIME_DEFAULT;
-const uint8_t ADC_CHANNEL_ID = ;
+const uint8_t ADC_CHANNEL_ID = 1;
 
 struct adc_channel_cfg adc_config = {
         .gain = ADC_GAIN,
@@ -28,4 +28,5 @@ int main (){
     int ch = adc_channel_setup(adc1, &adc_config);
 
     int value = adc_read(adc1, &adc_config);
+    printf("value = %i", value);
 }
