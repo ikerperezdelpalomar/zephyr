@@ -213,7 +213,7 @@ static const uint32_t table_samp_time[] = {
 
 #ifdef CONFIG_DMA_STM32
 struct stream {
-	const char *dma_name;
+	//const char *dma_name;
 	const struct device *dma_dev;
 	uint32_t channel; /* stores the channel for dma or mux */
 	struct dma_config dma_cfg;
@@ -239,6 +239,8 @@ struct adc_stm32_data {
 	int8_t acq_time_index;
 #endif
 # if defined CONFIG_DMA_STM32
+	struct k_sem status_sem;
+	volatile uint32_t status_flags;
 	struct stream adc_dma;
 #endif
 };
@@ -790,15 +792,16 @@ static const struct adc_driver_api api_stm32_driver_api = {
 };
 
 // To be revised
-#define DMA_CHANNEL_CONFIG(id, dir)					\
-		DT_INST_DMAS_CELL_BY_NAME(id, dir, channel_config)
-#define DMA_FEATURES(id, dir)						\
-		DT_INST_DMAS_CELL_BY_NAME(id, dir, features)
+#define DMA_CHANNEL_CONFIG(index, dir)					\
+		DT_INST_DMAS_CELL_BY_NAME(index, dir, channel_config)
+#define DMA_FEATURES(index, dir)						\
+		DT_INST_DMAS_CELL_BY_NAME(index, dir, features)
+#define DMA_CTLR(index, dir)						\
+		DT_INST_DMAS_CTLR_BY_NAME(index, dir)
 
 #define ADC_DMA_CHANNEL_INIT(index, dir, dir_cap, src_dev, dest_dev)	\
-	.dma_name = DT_INST_DMAS_LABEL_BY_NAME(index, dir),		\
-	.channel =							\
-		DT_INST_DMAS_CELL_BY_NAME(index, dir, channel),		\
+	.dma_dev = DEVICE_DT_GET(DMA_CTLR(index, dir)),		\
+	.channel = DT_INST_DMAS_CELL_BY_NAME(index, dir, channel),		\
 	.dma_cfg = {							\
 		.dma_slot =						\
 		   DT_INST_DMAS_CELL_BY_NAME(index, dir, slot),		\
@@ -822,22 +825,22 @@ static const struct adc_driver_api api_stm32_driver_api = {
 	.fifo_threshold = STM32_DMA_FEATURES_FIFO_THRESHOLD(		\
 					DMA_FEATURES(index, dir)),	\
 
+
 // To be revised
 #if CONFIG_DMA_STM32
-#define ADC_DMA_CHANNEL(id, dir, DIR, src, dest)			\
-	.dma_##dir = {							\
-		COND_CODE_1(DT_INST_DMAS_HAS_NAME(id, dir),		\
-			(ADC_DMA_CHANNEL_INIT(id, dir, DIR, src, dest)),\
-			(NULL))						\
+#define ADC_DMA_CHANNEL(index, dir, DIR, src, dest)			\
+	.adc_dma = {							\
+		COND_CODE_1(DT_INST_DMAS_HAS_NAME(index, dir),		\
+			(ADC_DMA_CHANNEL_INIT(index, dir, DIR, src, dest)), (NULL)) \
 		},
 
-#define ADC_DMA_STATUS_SEM(id)						\
+#define ADC_DMA_STATUS_SEM(index)						\
 	.status_sem = Z_SEM_INITIALIZER(				\
-		spi_stm32_dev_data_##id.status_sem, 0, 1),
+		adc_stm32_data_##index.status_sem, 0, 1),
 
 #else
-#define ADC_DMA_CHANNEL(id, dir, DIR, src, dest)
-#define ADC_DMA_STATUS_SEM(id)
+#define ADC_DMA_CHANNEL(index, dir, DIR, src, dest)
+#define ADC_DMA_STATUS_SEM(index)
 #endif
 
 #define STM32_ADC_INIT(index)						\
@@ -861,8 +864,8 @@ static struct adc_stm32_data adc_stm32_data_##index = {			\
 	ADC_CONTEXT_INIT_TIMER(adc_stm32_data_##index, ctx),		\
 	ADC_CONTEXT_INIT_LOCK(adc_stm32_data_##index, ctx),		\
 	ADC_CONTEXT_INIT_SYNC(adc_stm32_data_##index, ctx),	\
-	ADC_DMA_CHANNEL(id, dir, DIR, src, dest)	\
-	ADC_DMA_STATUS_SEM(id)	\
+	ADC_DMA_CHANNEL(index, dir, DIR, src, dest)	\
+	ADC_DMA_STATUS_SEM(index)	\
 };			\
 									\
 DEVICE_DT_INST_DEFINE(index,						\
