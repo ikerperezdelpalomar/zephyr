@@ -1,0 +1,13 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Copyright (c) 2020 Libre Solar Technologies GmbH
+ */
+/* adjust channel number according to pinmux in board.dts */
+&adc1 {
+		status = "okay";
+};		
+	
+
+
+
